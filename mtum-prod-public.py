@@ -40,6 +40,7 @@ start_date = (pd.to_datetime(month) - timedelta(days = 365+60)).strftime("%Y-%m-
 end_date = month
 
 last_month_date = (pd.to_datetime(month) - timedelta(days = 30)).strftime("%Y-%m-%d")
+next_month_date = (pd.to_datetime(month) + timedelta(days = 30)).strftime("%Y-%m-%d")
 
 # =============================================================================
 # Base Point-in-Time Universe + Benchmark Generation
@@ -111,8 +112,13 @@ for ticker in tickers:
         
         theo_expected = beta * sharpe
         
-        ticker_data = pd.DataFrame([{"entry_date": month, "ticker": ticker, "beta": beta, "sharpe": sharpe, "12-1_return": ticker_return_over_period, "avg_monthly_return": avg_monthly_return, "mom_score": theo_expected, "forward_returns": np.nan}])
+        forward_data = pd.json_normalize(requests.get(f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{end_date}/{next_month_date}?adjusted=true&sort=asc&limit=50000&apiKey={polygon_api_key}").json()["results"]).set_index("t")
+        forward_data.index = pd.to_datetime(forward_data.index, unit="ms", utc=True).tz_convert("America/New_York")
+
+        forward_return = round(((forward_data["c"].iloc[-1] - forward_data["c"].iloc[0]) / forward_data["c"].iloc[0]) * 100, 2)    
         
+        ticker_data = pd.DataFrame([{"entry_date": month, "ticker": ticker, "beta": beta, "sharpe": sharpe, "12-1_return": ticker_return_over_period, "avg_monthly_return": avg_monthly_return, "mom_score": theo_expected, "forward_returns": forward_return}])
+                
         monthly_ticker_list.append(ticker_data)
         
         end_time = datetime.now()    

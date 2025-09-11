@@ -86,6 +86,9 @@ for ticker in tickers:
         underlying_data["month"] = underlying_data.index.month
         
         twelve_minus_one_data = underlying_data[underlying_data["date"] < last_month_date].copy().tail(252)
+
+        if len(twelve_minus_one_data) < 252:
+                    continue
         
         twelve_minus_one_data["year"] = twelve_minus_one_data.index.year
         twelve_minus_one_data["month"] = twelve_minus_one_data.index.month
@@ -142,3 +145,4 @@ for ticker in tickers:
 full_period_ticker_data = pd.concat(monthly_ticker_list)
 top_decile = full_period_ticker_data.sort_values(by="mom_score", ascending = False).head(10)
 bot_decile = full_period_ticker_data.sort_values(by="mom_score", ascending = True).head(10)
+

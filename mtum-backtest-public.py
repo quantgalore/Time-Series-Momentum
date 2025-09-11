@@ -84,6 +84,9 @@ for month in months[:-1]:
                 underlying_data["month"] = underlying_data.index.month
                 
                 twelve_minus_one_data = underlying_data[underlying_data["date"] < last_month_date].copy().tail(252)
+
+                if len(twelve_minus_one_data) < 252:
+                    continue
                 
                 twelve_minus_one_data["year"] = twelve_minus_one_data.index.year
                 twelve_minus_one_data["month"] = twelve_minus_one_data.index.month
@@ -183,4 +186,5 @@ plt.legend(["Top Decile", "Bottom Decile", "Long-Short"])
 plt.xlabel("Date")
 plt.ylabel("Cumulative % Returns")
 plt.show()
+
 plt.close()

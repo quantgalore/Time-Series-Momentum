@@ -24,6 +24,7 @@ engine = sqlalchemy.create_engine('mysql+mysqlconnector://user:pass@localhost:33
 
 calendar = get_calendar("NYSE")
 trading_dates = calendar.schedule(start_date = "2019-01-01", end_date = (datetime.today() - timedelta(days=1))).index.strftime("%Y-%m-%d").values
+# trading_dates = calendar.schedule(start_date = "2013-01-01", end_date = "2018-12-31").index.strftime("%Y-%m-%d").values
 
 all_dates = pd.DataFrame({"date": pd.to_datetime(trading_dates)})
 all_dates["year"] = all_dates["date"].dt.year
@@ -38,16 +39,23 @@ monthly_dates = start_of_the_months["date"].drop_duplicates().values
 # Retrieval of optionable stocks
 # =============================================================================
 
+# Keep 1 session active (same headers, etc.)
+connection_session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=500)
+connection_session.mount('https://', adapter)
+
 weekly_ticker_data_list = []
 times = []
 
 # date = monthly_dates[0]
 for date in monthly_dates:
     
+    start_time = datetime.now()
+    
     pit_data_list = []
     pit_url_list = []
     
-    pit_request_0 = requests.get(f"https://api.polygon.io/v3/reference/tickers?date={date}&type=CS&market=stocks&active=true&order=asc&limit=1000&sort=ticker&apiKey={polygon_api_key}").json()
+    pit_request_0 = connection_session.get(f"https://api.polygon.io/v3/reference/tickers?date={date}&type=CS&market=stocks&active=true&order=asc&limit=1000&sort=ticker&apiKey={polygon_api_key}").json()
     pit_next_url = pit_request_0["next_url"]
     
     pit_data = pd.json_normalize(pit_request_0["results"])
@@ -59,7 +67,7 @@ for date in monthly_dates:
         
         try:
             
-            pit_request_n = requests.get(f"{pit_url_list[-1]}&apiKey={polygon_api_key}").json()
+            pit_request_n = connection_session.get(f"{pit_url_list[-1]}&apiKey={polygon_api_key}").json()
             pit_data_n = pd.json_normalize(pit_request_n["results"])
             pit_data_list.append(pit_data_n)
             
@@ -72,7 +80,7 @@ for date in monthly_dates:
     
     tickers_on_that_date = pd.concat(pit_data_list)
     
-    grouped_ticker_data_request = pd.json_normalize(requests.get(f"https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/{date}?adjusted=true&apiKey={polygon_api_key}").json()["results"])
+    grouped_ticker_data_request = pd.json_normalize(connection_session.get(f"https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/{date}?adjusted=true&apiKey={polygon_api_key}").json()["results"])
     grouped_ticker_data = grouped_ticker_data_request.copy().rename(columns={"T":"ticker"}) 
     
     grouped_ticker_data["date"] = pd.to_datetime(grouped_ticker_data["t"], unit = "ms", utc = True).dt.tz_convert("America/New_York").dt.strftime("%Y-%m-%d")
@@ -89,11 +97,9 @@ for date in monthly_dates:
     # ticker = tickers[0]
     for ticker in tickers:
         
-        start_time = datetime.now()
-        
         try:
             
-            all_contracts = pd.json_normalize(requests.get(f"https://api.polygon.io/v3/reference/options/contracts?underlying_ticker={ticker}&contract_type=call&as_of={date}&limit=1000&apiKey={polygon_api_key}").json()["results"])    
+            all_contracts = pd.json_normalize(connection_session.get(f"https://api.polygon.io/v3/reference/options/contracts?underlying_ticker={ticker}&contract_type=call&as_of={date}&limit=1000&apiKey={polygon_api_key}").json()["results"])    
             all_expiration_dates = np.sort(all_contracts["expiration_date"].drop_duplicates().values)
             
             exp_date_data = pd.DataFrame({"date": all_expiration_dates})
@@ -117,15 +123,15 @@ for date in monthly_dates:
             print(error)
             continue
         
-        end_time = datetime.now()    
-        seconds_to_complete = (end_time - start_time).total_seconds()
-        times.append(seconds_to_complete)
-        iteration = round((np.where(tickers==ticker)[0][0]/len(tickers))*100,2)
-        iterations_remaining = len(tickers) - np.where(tickers==ticker)[0][0]
-        average_time_to_complete = np.mean(times)
-        estimated_completion_time = (datetime.now() + timedelta(seconds = int(average_time_to_complete*iterations_remaining)))
-        time_remaining = estimated_completion_time - datetime.now()
-        print(f"{iteration}% complete, {time_remaining} left, ETA: {estimated_completion_time}")
+    end_time = datetime.now()    
+    seconds_to_complete = (end_time - start_time).total_seconds()
+    times.append(seconds_to_complete)
+    iteration = round((np.where(monthly_dates==date)[0][0]/len(monthly_dates))*100,2)
+    iterations_remaining = len(monthly_dates) - np.where(monthly_dates==date)[0][0]
+    average_time_to_complete = np.mean(times)
+    estimated_completion_time = (datetime.now() + timedelta(seconds = int(average_time_to_complete*iterations_remaining)))
+    time_remaining = estimated_completion_time - datetime.now()
+    print(f"{iteration}% complete, {time_remaining} left, ETA: {estimated_completion_time}")
         
 # =============================================================================
 # Final data storage.       

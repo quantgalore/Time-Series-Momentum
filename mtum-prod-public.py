@@ -39,7 +39,7 @@ month = months[-1]
 start_date = (pd.to_datetime(month) - timedelta(days = 365+60)).strftime("%Y-%m-%d")
 end_date = month
 
-last_month_date = (pd.to_datetime(month) - timedelta(days = 30)).strftime("%Y-%m-%d")
+last_month_date = np.sort(months[months < month])[-1]
 next_month_date = (pd.to_datetime(month) + timedelta(days = 30)).strftime("%Y-%m-%d")
 
 # =============================================================================
@@ -145,4 +145,5 @@ for ticker in tickers:
 full_period_ticker_data = pd.concat(monthly_ticker_list)
 top_decile = full_period_ticker_data.sort_values(by="mom_score", ascending = False).head(10)
 bot_decile = full_period_ticker_data.sort_values(by="mom_score", ascending = True).head(10)
+
 
